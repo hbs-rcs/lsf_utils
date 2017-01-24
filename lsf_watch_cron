@@ -1,0 +1,32 @@
+#!/bin/sh
+
+umask 002 # so mkdir makes a group-writable dir
+
+# Need LSF API for watch_queues
+. /opt/lsf/conf/profile.lsf
+
+ritg_bin=/opt/ritg-util/bin/
+
+year_month_dir=$(date +%Y/%m) # 2015/08
+date_for_file=$(date +%F_%H-%M) # 2015-08-31_13-00
+
+watch_queues_exe=$ritg_bin/watch_queues
+watch_queues_dir=/groups/ritg/watch_queues
+
+# busers reports all active accounts
+busers_exe="busers all"
+busers_dir=/groups/ritg/watch_busers
+
+################################################################################
+
+# Run watch_queues to see how many jobs are in each queue
+wq_month_dir=$watch_queues_dir/$year_month_dir
+mkdir -p $wq_month_dir
+$watch_queues_exe > $wq_month_dir/wq_$date_for_file
+
+# Run busers to see how many jobs each user has pend/run/etc.
+bu_month_dir=$busers_dir/$year_month_dir
+mkdir -p $bu_month_dir
+# grep out the default line, which just shows default slot limit
+# Then print only lines with at least one job in any state
+$busers_exe | grep -v default| perl -wane 'print if $.==1 || $F[3] > 0' > $bu_month_dir/bu_$date_for_file

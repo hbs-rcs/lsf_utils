@@ -1,0 +1,75 @@
+#!/opt/python-2.7.6/bin/python
+
+# import bin/efficiency.py
+import efficiency
+
+import sys
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import datetime
+from dateutil.tz import tzlocal
+from StringIO import StringIO
+
+def execute_efficiency(threshold):
+    """execute main method of efficiency.py and redirect to stdout to memory"""
+
+    # start of disgusting stdout capture hack as found at 
+    # https://wrongsideofmemphis.wordpress.com/2010/03/01/store-standard-output-on-a-variable-in-python/
+    old_stdout = sys.stdout
+    
+    efficiency_output = StringIO()
+
+    sys.stdout = efficiency_output 
+    efficiency.main(threshold)
+
+    sys.stdout = old_stdout
+
+    result_string = efficiency_output.getvalue()
+    # end of disgusting hack
+
+    return result_string
+
+def main(floor_value):
+    """run efficiency.py and send email with output"""
+
+    message_body = execute_efficiency(floor_value)
+    message_body_html = """
+    <html>
+    <head></head>
+    <body><pre>%s</pre></body>
+    </html>
+    """ % message_body 
+
+    timestamp = datetime.datetime.now(tzlocal()).strftime('%a %b %d %H:%M:%S %Z %Y')
+    sender = "orchestra@orchestra.med.harvard.edu"
+    #receiver = "alex_truong@hms.harvard.edu"
+    receiver = "rc@hms.harvard.edu"
+
+    msg = MIMEMultipart('alternative')
+    msg.add_header('Content-Type', 'text/HTML')
+    msg['Subject'] = "Jobs with bloated efficiency as of %s" % timestamp
+    msg['From'] = sender
+    msg['To'] = receiver
+
+    part1 = MIMEText(message_body, 'plain')
+    part2 = MIMEText(message_body_html, 'html')
+
+    msg.attach(part1)
+    msg.attach(part2)
+    #server = smtplib.SMTP('smtp.orchestra')
+    server = smtplib.SMTP('gate3.med.harvard.edu')
+
+    server.sendmail(sender, receiver, msg.as_string())
+    server.quit()
+    
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description='internal email monitoring wrapper for /opt/ritg-util/bin/efficiency.py')
+    parser.add_argument('-t', '--threshold', default=1.1, help='minimum efficiency value to display (default = 1.1)')
+
+    args = parser.parse_args()
+
+    main(float(args.threshold)) 
+
